@@ -1,4 +1,8 @@
-use std::{error, fs, io, ops};
+use std::{
+    error, fs,
+    io::{self, Write},
+    ops,
+};
 
 use rand::{self, Rng};
 
@@ -93,14 +97,23 @@ impl Image {
         Ok(())
     }
 
-    fn sample(camera: &Camera, world: &World, sampling: usize) -> Image {
+    fn sample(
+        height: usize,
+        width: usize,
+        camera: &Camera,
+        world: &World,
+        sampling: usize,
+        depth: usize,
+    ) -> Image {
         let mut rng = rand::thread_rng();
         let mut image = Image {
-            width: 1920,
-            height: 1080,
+            width,
+            height,
             lines: vec![],
         };
         for y in 0..image.height {
+            print!("\rRendering line {} of {height}", y + 1);
+            io::stdout().flush().unwrap();
             let mut line = Vec::<Color>::new();
             for x in 0..image.width {
                 let mut color = BLACK;
@@ -108,7 +121,7 @@ impl Image {
                     let u = (x as f64 + rng.gen_range(0.0..1.0)) / (image.width - 1) as f64;
                     let v = (y as f64 + rng.gen_range(0.0..1.0)) / (image.height - 1) as f64;
                     let ray = camera.get_ray(u, v);
-                    color = color + Ray::color(ray, world);
+                    color = color + Ray::color(ray, world, depth);
                 }
                 line.push(color * (1.0 / sampling as f64));
             }
@@ -191,6 +204,20 @@ impl Vec3 {
         let norm = self.norm();
         self * (1 as f64 / norm)
     }
+
+    fn random() -> Self {
+        let mut rng = rand::thread_rng();
+        loop {
+            let vec = Vec3::new(
+                rng.gen_range(0.0..1.0),
+                rng.gen_range(0.0..1.0),
+                rng.gen_range(0.0..1.0),
+            );
+            if vec * vec <= 1.0 {
+                return vec;
+            }
+        }
+    }
 }
 
 type Point3 = Vec3;
@@ -206,15 +233,21 @@ impl Ray {
         self.origin + (self.direction * t)
     }
 
-    fn color(ray: Ray, hittable: &dyn Hittable) -> Color {
+    fn color(ray: Ray, hittable: &dyn Hittable, depth: usize) -> Color {
+        if depth == 0 {
+            return BLACK;
+        };
         match hittable.hit(&ray, 0.0, f64::MAX) {
             None => Color::blend(BLUE_SKY, WHITE, 0.5 * (ray.direction.unit().y + 1.0)),
             Some(hit) => {
-                Color {
-                    red: hit.normal.x + 1.0,
-                    green: hit.normal.y + 1.0,
-                    blue: hit.normal.z + 1.0,
-                } * 0.5
+                Ray::color(
+                    Ray {
+                        origin: hit.point,
+                        direction: hit.normal + Vec3::random().unit(),
+                    },
+                    hittable,
+                    depth - 1,
+                ) * 0.5
             }
         }
     }
@@ -308,7 +341,8 @@ impl Camera {
 fn main() {
     println!("Hello, world!");
 
-    let sampling = 4;
+    let sampling = 12;
+    let depth = 20;
     let camera = Camera::new(16.0 / 9.0, 2.0, 1.0);
 
     let world = World(vec![
@@ -322,7 +356,7 @@ fn main() {
         }),
     ]);
 
-    let image = Image::sample(&camera, &world, sampling);
+    let image = Image::sample(288, 512, &camera, &world, sampling, depth);
     let file = fs::File::create("test.ppm").unwrap();
     let mut buffer = io::BufWriter::new(file);
     image.draw(&mut buffer).unwrap();
