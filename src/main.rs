@@ -7,7 +7,7 @@ use std::{
 use rand::{self, Rng};
 
 fn convert_to_u8(taint: f64) -> u8 {
-    (taint * u8::MAX as f64) as u8
+    (taint.sqrt() * u8::MAX as f64) as u8
 }
 
 #[derive(Clone, Copy)]
@@ -237,7 +237,7 @@ impl Ray {
         if depth == 0 {
             return BLACK;
         };
-        match hittable.hit(&ray, 0.0, f64::MAX) {
+        match hittable.hit(&ray, 0.001, f64::MAX) {
             None => Color::blend(BLUE_SKY, WHITE, 0.5 * (ray.direction.unit().y + 1.0)),
             Some(hit) => {
                 Ray::color(
@@ -341,8 +341,8 @@ impl Camera {
 fn main() {
     println!("Hello, world!");
 
-    let sampling = 12;
-    let depth = 20;
+    let sampling = 100;
+    let depth = 50;
     let camera = Camera::new(16.0 / 9.0, 2.0, 1.0);
 
     let world = World(vec![
@@ -356,7 +356,7 @@ fn main() {
         }),
     ]);
 
-    let image = Image::sample(288, 512, &camera, &world, sampling, depth);
+    let image = Image::sample(1080, 1920, &camera, &world, sampling, depth);
     let file = fs::File::create("test.ppm").unwrap();
     let mut buffer = io::BufWriter::new(file);
     image.draw(&mut buffer).unwrap();
