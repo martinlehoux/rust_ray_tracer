@@ -88,6 +88,7 @@ impl Image {
         lower_left_corner: Point3,
         horizontal: Vec3,
         vertical: Vec3,
+        world: &World,
     ) -> Image {
         let mut image = Image {
             width: 1920,
@@ -103,13 +104,7 @@ impl Image {
                     origin: origin.clone(),
                     direction: (lower_left_corner + horizontal * u + vertical * v - origin).clone(),
                 };
-                line.push(Ray::color(
-                    ray,
-                    Sphere {
-                        center: Point3::new(0.0, 0.0, -1.0),
-                        radius: 0.5,
-                    },
-                ));
+                line.push(Ray::color(ray, world));
             }
             image.lines.push(line);
         }
@@ -205,11 +200,7 @@ impl Ray {
         self.origin + (self.direction * t)
     }
 
-    fn color(ray: Ray, hittable: impl Hittable) -> Color {
-        let sphere = Sphere {
-            center: Point3::new(0.0, 0.0, -1.0),
-            radius: 0.5,
-        };
+    fn color(ray: Ray, hittable: &dyn Hittable) -> Color {
         match hittable.hit(&ray, 0.0, f64::MAX) {
             None => Color::blend(BLUE_SKY, WHITE, 0.5 * (ray.direction.unit().y + 1.0)),
             Some(hit) => {
@@ -265,6 +256,16 @@ impl Hittable for Sphere {
     }
 }
 
+struct World(Vec<Box<dyn Hittable>>);
+
+impl Hittable for World {
+    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
+        (&self.0)
+            .into_iter()
+            .find_map(|hittable| hittable.hit(ray, t_min, t_max))
+    }
+}
+
 fn main() {
     println!("Hello, world!");
 
@@ -279,7 +280,18 @@ fn main() {
     let lower_left_corner =
         origin - horizontal * 0.5 - vertical * 0.5 - Vec3::new(0.0, 0.0, focal_length);
 
-    let image = Image::sample(origin, lower_left_corner, horizontal, vertical);
+    let world = World(vec![
+        Box::new(Sphere {
+            center: Point3::new(0.0, 0.0, -1.0),
+            radius: 0.5,
+        }),
+        Box::new(Sphere {
+            center: Point3::new(0.0, -100.5, -1.0),
+            radius: 100.0,
+        }),
+    ]);
+
+    let image = Image::sample(origin, lower_left_corner, horizontal, vertical, &world);
     let file = fs::File::create("test.ppm").unwrap();
     let mut buffer = io::BufWriter::new(file);
     image.draw(&mut buffer).unwrap();
