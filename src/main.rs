@@ -4,7 +4,7 @@ fn convert_to_u8(taint: f64) -> u8 {
     (taint * u8::MAX as f64) as u8
 }
 
-fn mix_taint(taint_1: f64, taint_2: f64, ratio: f64) -> f64 {
+fn blend(taint_1: f64, taint_2: f64, ratio: f64) -> f64 {
     taint_1 * ratio + taint_2 * (1.0 - ratio)
 }
 
@@ -37,11 +37,11 @@ impl Color {
         Ok(())
     }
 
-    fn mix(color_1: Color, color_2: Color, ratio: f64) -> Color {
+    fn blend(color_1: Color, color_2: Color, ratio: f64) -> Color {
         Color {
-            red: mix_taint(color_1.red, color_2.red, ratio),
-            green: mix_taint(color_1.green, color_2.green, ratio),
-            blue: mix_taint(color_1.blue, color_2.blue, ratio),
+            red: blend(color_1.red, color_2.red, ratio),
+            green: blend(color_1.green, color_2.green, ratio),
+            blue: blend(color_1.blue, color_2.blue, ratio),
         }
     }
 }
@@ -198,7 +198,7 @@ impl Ray {
 
     fn color(ray: Ray) -> Color {
         let t = 0.5 * (ray.direction.unit().y + 1.0);
-        Color::mix(
+        Color::blend(
             Color {
                 red: 0.5,
                 green: 0.7,
