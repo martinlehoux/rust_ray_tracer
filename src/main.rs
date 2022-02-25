@@ -6,6 +6,18 @@ struct Color {
     blue: u8,
 }
 
+impl Color {
+    fn draw(&self, writer: &mut (dyn io::Write)) -> Result<(), Box<dyn error::Error>> {
+        writer.write(self.red.to_string().as_bytes())?;
+        writer.write(b" ")?;
+        writer.write(self.green.to_string().as_bytes())?;
+        writer.write(b" ")?;
+        writer.write(self.blue.to_string().as_bytes())?;
+        writer.write(b"\n")?;
+        Ok(())
+    }
+}
+
 struct Image {
     width: usize,
     height: usize,
@@ -19,14 +31,9 @@ impl Image {
         writer.write(b" ")?;
         writer.write(self.height.to_string().as_bytes())?;
         writer.write(b"\n255\n")?;
-        for line in &self.lines {
+        for line in (&self.lines).into_iter().rev() {
             for pixel in line {
-                writer.write(pixel.red.to_string().as_bytes())?;
-                writer.write(b" ")?;
-                writer.write(pixel.green.to_string().as_bytes())?;
-                writer.write(b" ")?;
-                writer.write(pixel.blue.to_string().as_bytes())?;
-                writer.write(b"\n")?;
+                pixel.draw(writer)?;
             }
         }
         Ok(())
