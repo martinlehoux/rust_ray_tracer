@@ -1,22 +1,55 @@
 use std::{error, fs, io, ops};
 
+fn convert_to_u8(taint: f64) -> u8 {
+    (taint * u8::MAX as f64) as u8
+}
+
+fn mix_taint(taint_1: f64, taint_2: f64, ratio: f64) -> f64 {
+    taint_1 * ratio + taint_2 * (1.0 - ratio)
+}
+
 struct Color {
-    red: u8,
-    green: u8,
-    blue: u8,
+    red: f64,
+    green: f64,
+    blue: f64,
+}
+
+impl ops::Mul<f64> for Color {
+    type Output = Color;
+    fn mul(self, coef: f64) -> Self::Output {
+        Color {
+            red: self.red * coef,
+            green: self.green * coef,
+            blue: self.blue * coef,
+        }
+    }
 }
 
 impl Color {
     fn draw(&self, writer: &mut (dyn io::Write)) -> Result<(), Box<dyn error::Error>> {
-        writer.write(self.red.to_string().as_bytes())?;
+        writer.write(convert_to_u8(self.red).to_string().as_bytes())?;
         writer.write(b" ")?;
-        writer.write(self.green.to_string().as_bytes())?;
+        writer.write(convert_to_u8(self.green).to_string().as_bytes())?;
         writer.write(b" ")?;
-        writer.write(self.blue.to_string().as_bytes())?;
+        writer.write(convert_to_u8(self.blue).to_string().as_bytes())?;
         writer.write(b"\n")?;
         Ok(())
     }
+
+    fn mix(color_1: Color, color_2: Color, ratio: f64) -> Color {
+        Color {
+            red: mix_taint(color_1.red, color_2.red, ratio),
+            green: mix_taint(color_1.green, color_2.green, ratio),
+            blue: mix_taint(color_1.blue, color_2.blue, ratio),
+        }
+    }
 }
+
+const WHITE: Color = Color {
+    red: 1.0,
+    green: 1.0,
+    blue: 1.0,
+};
 
 struct Image {
     width: usize,
@@ -49,9 +82,9 @@ impl Image {
             let mut line = Vec::<Color>::new();
             for x in 0..image.width {
                 line.push(Color {
-                    red: (x as f64 / (image.width - 1) as f64 * 255 as f64) as u8,
-                    green: (y as f64 / (image.height - 1) as f64 * 255 as f64) as u8,
-                    blue: 64,
+                    red: (x as f64 / (image.width - 1) as f64),
+                    green: (y as f64 / (image.height - 1) as f64),
+                    blue: 0.25,
                 })
             }
             image.lines.push(line);
