@@ -8,7 +8,7 @@ fn blend(taint_1: f64, taint_2: f64, ratio: f64) -> f64 {
     taint_1 * ratio + taint_2 * (1.0 - ratio)
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Color {
     red: f64,
     green: f64,
@@ -27,7 +27,7 @@ impl ops::Mul<f64> for Color {
 }
 
 impl Color {
-    fn draw(&self, writer: &mut (dyn io::Write)) -> Result<(), Box<dyn error::Error>> {
+    fn draw(self, writer: &mut (dyn io::Write)) -> Result<(), Box<dyn error::Error>> {
         writer.write(convert_to_u8(self.red).to_string().as_bytes())?;
         writer.write(b" ")?;
         writer.write(convert_to_u8(self.green).to_string().as_bytes())?;
@@ -49,6 +49,16 @@ impl Color {
 const WHITE: Color = Color {
     red: 1.0,
     green: 1.0,
+    blue: 1.0,
+};
+const RED: Color = Color {
+    red: 1.0,
+    green: 0.0,
+    blue: 0.0,
+};
+const BLUE_SKY: Color = Color {
+    red: 0.5,
+    green: 0.7,
     blue: 1.0,
 };
 
@@ -198,15 +208,7 @@ impl Ray {
 
     fn color(ray: Ray) -> Color {
         let t = 0.5 * (ray.direction.unit().y + 1.0);
-        Color::blend(
-            Color {
-                red: 0.5,
-                green: 0.7,
-                blue: 1.0,
-            },
-            WHITE,
-            t,
-        )
+        Color::blend(BLUE_SKY, WHITE, t)
     }
 }
 
