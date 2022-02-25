@@ -199,21 +199,22 @@ impl Ray {
     }
 
     fn color(ray: Ray) -> Color {
-        if hit_sphere(
-            &Sphere {
-                center: Point3 {
-                    x: 0.0,
-                    y: 0.0,
-                    z: -1.0,
-                },
-                radius: 0.5,
-            },
-            &ray,
-        ) {
-            return RED;
+        let sphere = Sphere {
+            center: Point3::new(0.0, 0.0, -1.0),
+            radius: 0.5,
+        };
+        let t = hit_sphere(&sphere, &ray);
+        if t > 0.0 {
+            let n = (ray.at(t) - sphere.center).unit();
+            Color {
+                red: n.x + 1.0,
+                green: n.y + 1.0,
+                blue: n.z + 1.0,
+            } * 0.5
+        } else {
+            let t = 0.5 * (ray.direction.unit().y + 1.0);
+            Color::blend(BLUE_SKY, WHITE, t)
         }
-        let t = 0.5 * (ray.direction.unit().y + 1.0);
-        Color::blend(BLUE_SKY, WHITE, t)
     }
 }
 
@@ -222,13 +223,17 @@ struct Sphere {
     radius: f64,
 }
 
-fn hit_sphere(sphere: &Sphere, ray: &Ray) -> bool {
+fn hit_sphere(sphere: &Sphere, ray: &Ray) -> f64 {
     let oc = ray.origin - sphere.center;
     let a = ray.direction * ray.direction;
     let b = oc * ray.direction * 2.0;
     let c = oc * oc - (sphere.radius * sphere.radius);
     let discriminant = b * b - 4.0 * a * c;
-    discriminant > 0.0
+    if discriminant < 0.0 {
+        -1.0
+    } else {
+        (-b - discriminant.sqrt()) / (2.0 * a)
+    }
 }
 
 fn main() {
