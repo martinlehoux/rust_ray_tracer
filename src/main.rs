@@ -187,7 +187,6 @@ impl Vec3 {
 }
 
 type Point3 = Vec3;
-type Time = f64;
 
 struct Ray {
     origin: Point3,
@@ -195,7 +194,7 @@ struct Ray {
 }
 
 impl Ray {
-    fn at(self, t: Time) -> Point3 {
+    fn at(self, t: f64) -> Point3 {
         self.origin + (self.direction * t)
     }
 
