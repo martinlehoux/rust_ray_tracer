@@ -1,4 +1,4 @@
-use std::{error::Error, fs, io};
+use std::{error, fs, io, ops};
 
 struct Color {
     red: u8,
@@ -13,7 +13,7 @@ struct Image {
 }
 
 impl Image {
-    fn draw(&self, writer: &mut (dyn io::Write + 'static)) -> Result<(), Box<dyn Error>> {
+    fn draw(&self, writer: &mut (dyn io::Write + 'static)) -> Result<(), Box<dyn error::Error>> {
         writer.write(b"P3\n")?;
         writer.write(self.width.to_string().as_bytes())?;
         writer.write(b" ")?;
@@ -50,6 +50,84 @@ impl Image {
             image.lines.push(line);
         }
         image
+    }
+}
+
+struct Vec3 {
+    x: f64,
+    y: f64,
+    z: f64,
+}
+
+impl ops::Add for Vec3 {
+    type Output = Self;
+    fn add(self, vec: Self) -> Self::Output {
+        Vec3 {
+            x: self.x + vec.x,
+            y: self.y + vec.y,
+            z: self.z + vec.z,
+        }
+    }
+}
+
+impl ops::Sub for Vec3 {
+    type Output = Self;
+    fn sub(self, vec: Self) -> Self::Output {
+        Vec3 {
+            x: self.x - vec.x,
+            y: self.y - vec.y,
+            z: self.z - vec.z,
+        }
+    }
+}
+
+impl ops::Mul<f64> for Vec3 {
+    type Output = Vec3;
+    fn mul(self, coef: f64) -> Self::Output {
+        Vec3 {
+            x: self.x * coef,
+            y: self.y * coef,
+            z: self.z * coef,
+        }
+    }
+}
+
+// Cross product
+impl ops::BitAnd for Vec3 {
+    type Output = Vec3;
+    fn bitand(self, vec: Self) -> Self::Output {
+        Vec3 {
+            x: self.y * vec.z - self.z * vec.y,
+            y: self.z * vec.x - self.x * vec.z,
+            z: self.x * vec.y - self.y * vec.x,
+        }
+    }
+}
+
+// Dot product
+impl ops::Mul<Vec3> for Vec3 {
+    type Output = Vec3;
+    fn mul(self, vec: Vec3) -> Self::Output {
+        Vec3 {
+            x: self.x * vec.x,
+            y: self.y * vec.y,
+            z: self.z * vec.z,
+        }
+    }
+}
+
+impl Vec3 {
+    fn square(&self) -> f64 {
+        self.x * self.x + self.y * self.y + self.z * self.z
+    }
+
+    fn norm(&self) -> f64 {
+        self.square().sqrt()
+    }
+
+    fn unit(self) -> Vec3 {
+        let norm = self.norm();
+        self * (1 as f64 / norm)
     }
 }
 
