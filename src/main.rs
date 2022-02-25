@@ -41,8 +41,8 @@ impl Image {
 
     fn sample() -> Image {
         let mut image = Image {
-            width: 256,
-            height: 256,
+            width: 1920,
+            height: 1080,
             lines: vec![],
         };
         for y in 0..image.height {
@@ -156,6 +156,7 @@ fn main() {
     println!("Hello, world!");
 
     let image = Image::sample();
-    let mut file = fs::File::create("test.ppm").unwrap();
-    image.draw(&mut file).unwrap();
+    let file = fs::File::create("test.ppm").unwrap();
+    let mut buffer = io::BufWriter::new(file);
+    image.draw(&mut buffer).unwrap();
 }
