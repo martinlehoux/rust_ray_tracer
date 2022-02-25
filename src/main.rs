@@ -1,11 +1,9 @@
 use std::{error, fs, io, ops};
 
+use rand::{self, Rng};
+
 fn convert_to_u8(taint: f64) -> u8 {
     (taint * u8::MAX as f64) as u8
-}
-
-fn blend(taint_1: f64, taint_2: f64, ratio: f64) -> f64 {
-    taint_1 * ratio + taint_2 * (1.0 - ratio)
 }
 
 #[derive(Clone, Copy)]
@@ -26,6 +24,17 @@ impl ops::Mul<f64> for Color {
     }
 }
 
+impl ops::Add<Color> for Color {
+    type Output = Color;
+    fn add(self, color: Color) -> Self::Output {
+        Color {
+            red: self.red + color.red,
+            green: self.green + color.green,
+            blue: self.blue + color.blue,
+        }
+    }
+}
+
 impl Color {
     fn draw(self, writer: &mut (dyn io::Write)) -> Result<(), Box<dyn error::Error>> {
         writer.write(convert_to_u8(self.red).to_string().as_bytes())?;
@@ -38,11 +47,7 @@ impl Color {
     }
 
     fn blend(color_1: Color, color_2: Color, ratio: f64) -> Color {
-        Color {
-            red: blend(color_1.red, color_2.red, ratio),
-            green: blend(color_1.green, color_2.green, ratio),
-            blue: blend(color_1.blue, color_2.blue, ratio),
-        }
+        color_1 * ratio + color_2 * (1.0 - ratio)
     }
 }
 
@@ -60,6 +65,11 @@ const BLUE_SKY: Color = Color {
     red: 0.5,
     green: 0.7,
     blue: 1.0,
+};
+const BLACK: Color = Color {
+    red: 0.0,
+    green: 0.0,
+    blue: 0.0,
 };
 
 struct Image {
@@ -83,7 +93,8 @@ impl Image {
         Ok(())
     }
 
-    fn sample(camera: &Camera, world: &World) -> Image {
+    fn sample(camera: &Camera, world: &World, sampling: usize) -> Image {
+        let mut rng = rand::thread_rng();
         let mut image = Image {
             width: 1920,
             height: 1080,
@@ -92,10 +103,14 @@ impl Image {
         for y in 0..image.height {
             let mut line = Vec::<Color>::new();
             for x in 0..image.width {
-                let u = x as f64 / (image.width - 1) as f64;
-                let v = y as f64 / (image.height - 1) as f64;
-                let ray = camera.get_ray(u, v);
-                line.push(Ray::color(ray, world));
+                let mut color = BLACK;
+                for _ in 0..sampling {
+                    let u = (x as f64 + rng.gen_range(0.0..1.0)) / (image.width - 1) as f64;
+                    let v = (y as f64 + rng.gen_range(0.0..1.0)) / (image.height - 1) as f64;
+                    let ray = camera.get_ray(u, v);
+                    color = color + Ray::color(ray, world);
+                }
+                line.push(color * (1.0 / sampling as f64));
             }
             image.lines.push(line);
         }
@@ -293,6 +308,7 @@ impl Camera {
 fn main() {
     println!("Hello, world!");
 
+    let sampling = 4;
     let camera = Camera::new(16.0 / 9.0, 2.0, 1.0);
 
     let world = World(vec![
@@ -306,7 +322,7 @@ fn main() {
         }),
     ]);
 
-    let image = Image::sample(&camera, &world);
+    let image = Image::sample(&camera, &world, sampling);
     let file = fs::File::create("test.ppm").unwrap();
     let mut buffer = io::BufWriter::new(file);
     image.draw(&mut buffer).unwrap();
