@@ -83,13 +83,7 @@ impl Image {
         Ok(())
     }
 
-    fn sample(
-        origin: Point3,
-        lower_left_corner: Point3,
-        horizontal: Vec3,
-        vertical: Vec3,
-        world: &World,
-    ) -> Image {
+    fn sample(camera: &Camera, world: &World) -> Image {
         let mut image = Image {
             width: 1920,
             height: 1080,
@@ -100,10 +94,7 @@ impl Image {
             for x in 0..image.width {
                 let u = x as f64 / (image.width - 1) as f64;
                 let v = y as f64 / (image.height - 1) as f64;
-                let ray = Ray {
-                    origin: origin.clone(),
-                    direction: (lower_left_corner + horizontal * u + vertical * v - origin).clone(),
-                };
+                let ray = camera.get_ray(u, v);
                 line.push(Ray::color(ray, world));
             }
             image.lines.push(line);
@@ -266,19 +257,43 @@ impl Hittable for World {
     }
 }
 
+struct Camera {
+    origin: Point3,
+    horizontal: Vec3,
+    vertical: Vec3,
+    lower_left_corner: Point3,
+}
+
+impl Camera {
+    fn new(aspect_ratio: f64, viewport_height: f64, focal_length: f64) -> Self {
+        let viewport_width = aspect_ratio * viewport_height;
+        let origin = Point3::new(0.0, 0.0, 0.0);
+        let horizontal = Vec3::new(viewport_width, 0.0, 0.0);
+        let vertical = Vec3::new(0.0, viewport_height, 0.0);
+        Camera {
+            origin,
+            horizontal,
+            vertical,
+            lower_left_corner: origin
+                - horizontal * 0.5
+                - vertical * 0.5
+                - Vec3::new(0.0, 0.0, focal_length),
+        }
+    }
+
+    fn get_ray(&self, u: f64, v: f64) -> Ray {
+        Ray {
+            origin: self.origin,
+            direction: self.lower_left_corner + self.horizontal * u + self.vertical * v
+                - self.origin,
+        }
+    }
+}
+
 fn main() {
     println!("Hello, world!");
 
-    let aspect_ratio = 16.0 / 9.0;
-    let viewport_height = 2.0;
-    let viewport_width = viewport_height * aspect_ratio;
-    let focal_length = 1.0;
-
-    let origin = Point3::new(0.0, 0.0, 0.0);
-    let horizontal = Vec3::new(viewport_width, 0.0, 0.0);
-    let vertical = Vec3::new(0.0, viewport_height, 0.0);
-    let lower_left_corner =
-        origin - horizontal * 0.5 - vertical * 0.5 - Vec3::new(0.0, 0.0, focal_length);
+    let camera = Camera::new(16.0 / 9.0, 2.0, 1.0);
 
     let world = World(vec![
         Box::new(Sphere {
@@ -291,7 +306,7 @@ fn main() {
         }),
     ]);
 
-    let image = Image::sample(origin, lower_left_corner, horizontal, vertical, &world);
+    let image = Image::sample(&camera, &world);
     let file = fs::File::create("test.ppm").unwrap();
     let mut buffer = io::BufWriter::new(file);
     image.draw(&mut buffer).unwrap();
