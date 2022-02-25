@@ -101,10 +101,7 @@ impl Image {
                 let v = y as f64 / (image.height - 1) as f64;
                 let ray = Ray {
                     origin: origin.clone(),
-                    direction: lower_left_corner.clone()
-                        + horizontal.clone() * u
-                        + vertical.clone() * v
-                        - origin.clone(),
+                    direction: (lower_left_corner + horizontal * u + vertical * v - origin).clone(),
                 };
                 line.push(Ray::color(ray));
             }
@@ -114,7 +111,7 @@ impl Image {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Vec3 {
     x: f64,
     y: f64,
@@ -144,7 +141,7 @@ impl ops::Sub for Vec3 {
 }
 
 impl ops::Mul<f64> for Vec3 {
-    type Output = Vec3;
+    type Output = Self;
     fn mul(self, coef: f64) -> Self::Output {
         Vec3 {
             x: self.x * coef,
@@ -156,8 +153,8 @@ impl ops::Mul<f64> for Vec3 {
 
 // Cross product
 impl ops::BitAnd for Vec3 {
-    type Output = Vec3;
-    fn bitand(self, vec: Self) -> Self::Output {
+    type Output = Self;
+    fn bitand(self, vec: Vec3) -> Self::Output {
         Vec3 {
             x: self.y * vec.z - self.z * vec.y,
             y: self.z * vec.x - self.x * vec.z,
@@ -168,23 +165,19 @@ impl ops::BitAnd for Vec3 {
 
 // Dot product
 impl ops::Mul<Vec3> for Vec3 {
-    type Output = Vec3;
+    type Output = f64;
     fn mul(self, vec: Vec3) -> Self::Output {
-        Vec3 {
-            x: self.x * vec.x,
-            y: self.y * vec.y,
-            z: self.z * vec.z,
-        }
+        self.x * vec.x + self.y * vec.y + self.z * vec.z
     }
 }
 
 impl Vec3 {
-    fn square(&self) -> f64 {
-        self.x * self.x + self.y * self.y + self.z * self.z
+    fn new(x: f64, y: f64, z: f64) -> Self {
+        Vec3 { x, y, z }
     }
 
-    fn norm(&self) -> f64 {
-        self.square().sqrt()
+    fn norm(self) -> f64 {
+        (self * self).sqrt()
     }
 
     fn unit(self) -> Vec3 {
@@ -203,13 +196,40 @@ struct Ray {
 
 impl Ray {
     fn at(self, t: Time) -> Point3 {
-        self.origin + self.direction * t
+        self.origin + (self.direction * t)
     }
 
     fn color(ray: Ray) -> Color {
+        if hit_sphere(
+            &Sphere {
+                center: Point3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: -1.0,
+                },
+                radius: 0.5,
+            },
+            &ray,
+        ) {
+            return RED;
+        }
         let t = 0.5 * (ray.direction.unit().y + 1.0);
         Color::blend(BLUE_SKY, WHITE, t)
     }
+}
+
+struct Sphere {
+    center: Point3,
+    radius: f64,
+}
+
+fn hit_sphere(sphere: &Sphere, ray: &Ray) -> bool {
+    let oc = ray.origin - sphere.center;
+    let a = ray.direction * ray.direction;
+    let b = oc * ray.direction * 2.0;
+    let c = oc * oc - (sphere.radius * sphere.radius);
+    let discriminant = b * b - 4.0 * a * c;
+    discriminant > 0.0
 }
 
 fn main() {
@@ -220,36 +240,13 @@ fn main() {
     let viewport_width = viewport_height * aspect_ratio;
     let focal_length = 1.0;
 
-    let origin = Point3 {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-    };
-    let horizontal = Vec3 {
-        x: viewport_width,
-        y: 0.0,
-        z: 0.0,
-    };
-    let vertical = Vec3 {
-        x: 0.0,
-        y: viewport_height,
-        z: 0.0,
-    };
-    let lower_left_corner = origin.clone()
-        - horizontal.clone() * 0.5
-        - vertical.clone() * 0.5
-        - Vec3 {
-            x: 0.0,
-            y: 0.0,
-            z: focal_length,
-        };
+    let origin = Point3::new(0.0, 0.0, 0.0);
+    let horizontal = Vec3::new(viewport_width, 0.0, 0.0);
+    let vertical = Vec3::new(0.0, viewport_height, 0.0);
+    let lower_left_corner =
+        origin - horizontal * 0.5 - vertical * 0.5 - Vec3::new(0.0, 0.0, focal_length);
 
-    let image = Image::sample(
-        origin.clone(),
-        lower_left_corner,
-        horizontal.clone(),
-        vertical.clone(),
-    );
+    let image = Image::sample(origin, lower_left_corner, horizontal, vertical);
     let file = fs::File::create("test.ppm").unwrap();
     let mut buffer = io::BufWriter::new(file);
     image.draw(&mut buffer).unwrap();
