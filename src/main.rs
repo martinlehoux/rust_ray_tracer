@@ -138,6 +138,20 @@ impl Vec3 {
     }
 }
 
+type Point3 = Vec3;
+type Time = f64;
+
+struct Ray {
+    origin: Point3,
+    direction: Vec3,
+}
+
+impl Ray {
+    fn at(self, t: Time) -> Point3 {
+        self.origin + self.direction * t
+    }
+}
+
 fn main() {
     println!("Hello, world!");
 
