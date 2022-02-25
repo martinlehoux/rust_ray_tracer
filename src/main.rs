@@ -103,7 +103,13 @@ impl Image {
                     origin: origin.clone(),
                     direction: (lower_left_corner + horizontal * u + vertical * v - origin).clone(),
                 };
-                line.push(Ray::color(ray));
+                line.push(Ray::color(
+                    ray,
+                    Sphere {
+                        center: Point3::new(0.0, 0.0, -1.0),
+                        radius: 0.5,
+                    },
+                ));
             }
             image.lines.push(line);
         }
@@ -188,6 +194,7 @@ impl Vec3 {
 
 type Point3 = Vec3;
 
+#[derive(Clone, Copy)]
 struct Ray {
     origin: Point3,
     direction: Vec3,
@@ -198,22 +205,20 @@ impl Ray {
         self.origin + (self.direction * t)
     }
 
-    fn color(ray: Ray) -> Color {
+    fn color(ray: Ray, hittable: impl Hittable) -> Color {
         let sphere = Sphere {
             center: Point3::new(0.0, 0.0, -1.0),
             radius: 0.5,
         };
-        let t = hit_sphere(&sphere, &ray);
-        if t > 0.0 {
-            let n = (ray.at(t) - sphere.center).unit();
-            Color {
-                red: n.x + 1.0,
-                green: n.y + 1.0,
-                blue: n.z + 1.0,
-            } * 0.5
-        } else {
-            let t = 0.5 * (ray.direction.unit().y + 1.0);
-            Color::blend(BLUE_SKY, WHITE, t)
+        match hittable.hit(&ray, 0.0, f64::MAX) {
+            None => Color::blend(BLUE_SKY, WHITE, 0.5 * (ray.direction.unit().y + 1.0)),
+            Some(hit) => {
+                Color {
+                    red: hit.normal.x + 1.0,
+                    green: hit.normal.y + 1.0,
+                    blue: hit.normal.z + 1.0,
+                } * 0.5
+            }
         }
     }
 }
@@ -223,16 +228,40 @@ struct Sphere {
     radius: f64,
 }
 
-fn hit_sphere(sphere: &Sphere, ray: &Ray) -> f64 {
-    let oc = ray.origin - sphere.center;
-    let a = ray.direction * ray.direction;
-    let b = oc * ray.direction * 2.0;
-    let c = oc * oc - (sphere.radius * sphere.radius);
-    let discriminant = b * b - 4.0 * a * c;
-    if discriminant < 0.0 {
-        -1.0
-    } else {
-        (-b - discriminant.sqrt()) / (2.0 * a)
+struct HitRecord {
+    point: Point3,
+    normal: Vec3,
+    time: f64,
+}
+
+trait Hittable {
+    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord>;
+}
+
+impl Hittable for Sphere {
+    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
+        let oc = ray.origin - self.center;
+        let a = ray.direction * ray.direction;
+        let half_b = oc * ray.direction;
+        let c = (oc * oc) - self.radius * self.radius;
+
+        let discriminant = half_b * half_b - a * c;
+        if discriminant < 0.0 {
+            None
+        } else {
+            let sqrtd = discriminant.sqrt();
+            let mut solutions = [(-half_b - sqrtd) / a, (-half_b + sqrtd) / a]
+                .into_iter()
+                .filter(|time| *time >= t_min && *time <= t_max);
+            match solutions.next() {
+                None => None,
+                Some(time) => Some(HitRecord {
+                    time,
+                    point: ray.at(time),
+                    normal: (ray.at(time) - self.center) * (1.0 / self.radius),
+                }),
+            }
+        }
     }
 }
 
