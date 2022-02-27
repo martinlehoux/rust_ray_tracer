@@ -1,7 +1,8 @@
 use std::{
     error, fs,
     io::{self, Write},
-    ops,
+    ops, rc,
+    str::MatchIndices,
 };
 
 use rand::{self, Rng};
@@ -24,6 +25,17 @@ impl ops::Mul<f64> for Color {
             red: self.red * coef,
             green: self.green * coef,
             blue: self.blue * coef,
+        }
+    }
+}
+
+impl ops::Mul<Color> for Color {
+    type Output = Color;
+    fn mul(self, color: Color) -> Self::Output {
+        Color {
+            red: self.red * color.red,
+            green: self.green * color.green,
+            blue: self.blue * color.blue,
         }
     }
 }
@@ -53,6 +65,10 @@ impl Color {
     fn blend(color_1: Color, color_2: Color, ratio: f64) -> Color {
         color_1 * ratio + color_2 * (1.0 - ratio)
     }
+
+    fn new(red: f64, green: f64, blue: f64) -> Color {
+        Color { red, green, blue }
+    }
 }
 
 const WHITE: Color = Color {
@@ -74,6 +90,11 @@ const BLACK: Color = Color {
     red: 0.0,
     green: 0.0,
     blue: 0.0,
+};
+const COPPER: Color = Color {
+    red: 0.722,
+    green: 0.451,
+    blue: 0.20,
 };
 
 struct Image {
@@ -218,6 +239,10 @@ impl Vec3 {
             }
         }
     }
+
+    fn reflect(self, normal: Vec3) -> Vec3 {
+        self - normal * (self * normal) * 2.0
+    }
 }
 
 type Point3 = Vec3;
@@ -239,16 +264,12 @@ impl Ray {
         };
         match hittable.hit(&ray, 0.001, f64::MAX) {
             None => Color::blend(BLUE_SKY, WHITE, 0.5 * (ray.direction.unit().y + 1.0)),
-            Some(hit) => {
-                Ray::color(
-                    Ray {
-                        origin: hit.point,
-                        direction: hit.normal + Vec3::random().unit(),
-                    },
-                    hittable,
-                    depth - 1,
-                ) * 0.5
-            }
+            Some(hit) => match hit.material.scatter(&ray, &hit) {
+                Some((attenuation, scattered)) => {
+                    attenuation * Ray::color(scattered, hittable, depth - 1)
+                }
+                None => BLACK,
+            },
         }
     }
 }
@@ -256,12 +277,14 @@ impl Ray {
 struct Sphere {
     center: Point3,
     radius: f64,
+    material: rc::Rc<dyn Material>,
 }
 
 struct HitRecord {
     point: Point3,
     normal: Vec3,
     time: f64,
+    material: rc::Rc<dyn Material>,
 }
 
 trait Hittable {
@@ -289,6 +312,7 @@ impl Hittable for Sphere {
                     time,
                     point: ray.at(time),
                     normal: (ray.at(time) - self.center) * (1.0 / self.radius),
+                    material: self.material.clone(),
                 }),
             }
         }
@@ -338,6 +362,47 @@ impl Camera {
     }
 }
 
+trait Material {
+    fn scatter(&self, ray: &Ray, hit: &HitRecord) -> Option<(Color, Ray)>;
+}
+
+struct Matte {
+    albedo: Color,
+}
+
+impl Material for Matte {
+    fn scatter(&self, _ray: &Ray, hit: &HitRecord) -> Option<(Color, Ray)> {
+        let direction = hit.normal + Vec3::random().unit();
+        // TODO: Check not null
+        let scattered = Ray {
+            origin: hit.point,
+            direction,
+        };
+        Some((self.albedo, scattered))
+    }
+}
+
+struct Metal {
+    albedo: Color,
+    fuzziness: f64,
+}
+
+impl Material for Metal {
+    fn scatter(&self, ray: &Ray, hit: &HitRecord) -> Option<(Color, Ray)> {
+        let reflected = ray.direction.unit().reflect(hit.normal);
+        let scattered = Ray {
+            origin: hit.point,
+            direction: reflected + Vec3::random().unit() * self.fuzziness,
+        };
+        if scattered.direction * hit.normal > 0.0 {
+            Some((self.albedo, scattered))
+        } else {
+            None
+        }
+        // TODO: Check direction
+    }
+}
+
 fn main() {
     println!("Hello, world!");
 
@@ -345,14 +410,32 @@ fn main() {
     let depth = 50;
     let camera = Camera::new(16.0 / 9.0, 2.0, 1.0);
 
+    let ground = rc::Rc::new(Matte {
+        albedo: Color::new(0.8, 0.8, 0.0),
+    });
+    let matte = rc::Rc::new(Matte {
+        albedo: Color::new(0.8, 0.6, 0.2),
+    });
+    let metal = rc::Rc::new(Metal {
+        albedo: COPPER,
+        fuzziness: 0.5,
+    });
+
     let world = World(vec![
         Box::new(Sphere {
             center: Point3::new(0.0, 0.0, -1.0),
             radius: 0.5,
+            material: matte.clone(),
+        }),
+        Box::new(Sphere {
+            center: Point3::new(-1.0, 0.0, -1.0),
+            radius: 0.5,
+            material: metal.clone(),
         }),
         Box::new(Sphere {
             center: Point3::new(0.0, -100.5, -1.0),
             radius: 100.0,
+            material: ground.clone(),
         }),
     ]);
 
