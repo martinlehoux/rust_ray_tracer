@@ -2,7 +2,6 @@ use std::{
     error, fs,
     io::{self, Write},
     ops, rc,
-    str::MatchIndices,
 };
 
 use rand::{self, Rng};
@@ -325,7 +324,8 @@ impl Hittable for World {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
         (&self.0)
             .into_iter()
-            .find_map(|hittable| hittable.hit(ray, t_min, t_max))
+            .filter_map(|hittable| hittable.hit(ray, t_min, t_max))
+            .min_by(|hit_1, hit_2| hit_1.time.partial_cmp(&hit_2.time).unwrap())
     }
 }
 
@@ -406,7 +406,7 @@ impl Material for Metal {
 fn main() {
     println!("Hello, world!");
 
-    let sampling = 100;
+    let sampling = 25;
     let depth = 50;
     let camera = Camera::new(16.0 / 9.0, 2.0, 1.0);
 
@@ -428,14 +428,14 @@ fn main() {
             material: matte.clone(),
         }),
         Box::new(Sphere {
-            center: Point3::new(-1.0, 0.0, -1.0),
-            radius: 0.5,
-            material: metal.clone(),
-        }),
-        Box::new(Sphere {
             center: Point3::new(0.0, -100.5, -1.0),
             radius: 100.0,
             material: ground.clone(),
+        }),
+        Box::new(Sphere {
+            center: Point3::new(-1.0, 0.0, -1.0),
+            radius: 0.5,
+            material: metal.clone(),
         }),
     ]);
 
